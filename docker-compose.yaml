@@ -1,0 +1,62 @@
+services:
+  postgres_d:
+    image: postgres:latest
+    container_name: postgres
+    hostname: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5555:5432"
+    command: >
+      postgres -c max_connections=1000
+               -c shared_buffers=256MB
+               -c effective_cache_size=768MB
+               -c maintenance_work_mem=64MB
+               -c checkpoint_completion_target=0.7
+               -c wal_buffers=16MB
+               -c default_statistics_target=100
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    networks:
+      - main_network
+    volumes:
+      - pg_data:/var/lib/postgresql/data/pgdata
+
+  backend:
+    container_name: backend
+    hostname: backend
+    ports:
+      - "8000:8000"
+    build:
+      dockerfile: Dockerfile
+      context: ./backend
+    restart: always
+    command: |
+      sh -c "
+      uv run python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./backend/app:/app
+    networks:
+      - main_network
+    env_file:
+      - .env
+    depends_on:
+      - postgres_d
+
+
+networks:
+  main_network:
+    driver: bridge
+
+volumes:
+  pg_data:
